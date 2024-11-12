@@ -1,0 +1,2 @@
+# Master of Science in Data Analytics and Data Science (DADS) 
+Welcome to the DADS Project Repository! This repository contains all the projects, assignments, and resources created during my studies in the Master of Science in Data Analytics and Data Science (DADS) program. This repository serves as a portfolio showcasing the skills and knowledge acquired throughout the program, including work in data analytics, data science, machine learning, and deep learning.
