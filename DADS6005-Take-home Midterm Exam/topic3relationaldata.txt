@@ -1,0 +1,10 @@
+Region_1:{"regionid": Region_1,"region_name": "Northwest","country": "United States","continent": "North America","population": 7510000}
+Region_2:{"regionid": Region_2,"region_name": "Southwest","country": "United States","continent": "North America","population": 9900000}
+Region_3:{"regionid": Region_3,"region_name": "Midwest","country": "United States","continent": "North America","population": 6800000}
+Region_4:{"regionid": Region_4,"region_name": "Northeast","country": "United States","continent": "North America","population": 5600000}
+Region_5:{"regionid": Region_5,"region_name": "Southeast","country": "United States","continent": "North America","population": 8100000}
+Region_6:{"regionid": Region_6,"region_name": "Quebec","country": "Canada","continent": "North America","population": 8500000}
+Region_7:{"regionid": Region_7,"region_name": "Ontario","country": "Canada","continent": "North America","population": 14500000}
+Region_8:{"regionid": Region_8,"region_name": "British Columbia","country": "Canada","continent": "North America","population": 5000000}
+Region_9:{"regionid": Region_9,"region_name": "Alberta","country": "Canada","continent": "North America","population": 4400000}
+Region_10:{"regionid": Region_10,"region_name": "New South Wales","country": "Australia","continent": "Oceania","population": 8200000}

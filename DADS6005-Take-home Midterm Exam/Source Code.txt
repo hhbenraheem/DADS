@@ -1,0 +1,432 @@
+scp -i Hafiz_Keypair_1.pem docker-compose.yml ubuntu@ec2-122-248-218-143.ap-southeast-1.compute.amazonaws.com:/home/ubuntu
+
+ssh -i "Hafiz_Keypair_1.pem" ubuntu@ec2-122-248-218-143.ap-southeast-1.compute.amazonaws.com
+
+sudo docker exec -it ksqldb-cli ksql http://ksqldb-server:8088
+
+#Access broker
+sudo docker exec -it broker bash
+
+#Create 8 topics
+kafka-topics --bootstrap-server broker:29092 --create --topic topic1 --partitions 5 --replication-factor 3
+kafka-topics --bootstrap-server broker:29092 --create --topic topic2 --partitions 5 --replication-factor 3
+kafka-topics --bootstrap-server broker:29092 --create --topic topic3 --partitions 5 --replication-factor 3
+kafka-topics --bootstrap-server broker:29092 --create --topic topic4 --partitions 5 --replication-factor 3
+kafka-topics --bootstrap-server broker:29092 --create --topic topic5 --partitions 5 --replication-factor 3
+kafka-topics --bootstrap-server broker:29092 --create --topic topic6 --partitions 5 --replication-factor 3
+kafka-topics --bootstrap-server broker:29092 --create --topic topic7 --partitions 5 --replication-factor 3
+kafka-topics --bootstrap-server broker:29092 --create --topic topic8 --partitions 5 --replication-factor 3
+
+#Connect to datagen-pageviews for topic1
+curl -X POST -H "Content-Type: application/json" \
+-d '{
+  "name": "datagen-pageviews",
+  "config": {
+    "name": "datagen-pageviews",
+    "connector.class": "io.confluent.kafka.connect.datagen.DatagenConnector",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "kafka.topic": "topic1",
+    "max.interval": "1000",
+    "quickstart": "pageviews",
+    "interval.type": "random",  
+    "interval.range.min": "1",  
+    "interval.range.max": "100"  
+  }
+}' http://localhost:8083/connectors
+
+#Connect to datagen-users for topic2
+curl -X POST -H "Content-Type: application/json" \
+-d '{
+  "name": "datagen-users",
+  "config": {
+    "name": "datagen-users",
+    "connector.class": "io.confluent.kafka.connect.datagen.DatagenConnector",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "kafka.topic": "topic2",
+    "max.interval": "1000",
+    "quickstart": "users",
+    "interval.type": "random",  
+    "interval.range.min": "1",  
+    "interval.range.max": "100"  
+  }
+}' http://localhost:8083/connectors
+
+#Connect to mockedup data for topic3
+docker exec -i broker kafka-console-producer \
+--broker-list broker:29092 \
+--topic topic3 \
+--property "parse.key=true" \
+--property "key.separator=:" \
+--property "value.format=JSON" \
+< topic3relationaldata.txt
+
+##Check status of topic3 in broker
+kafka-console-consumer --bootstrap-server broker:29092 --topic topic3 --from-beginning
+
+#Access ksqldb
+sudo docker exec -it ksqldb-cli ksql http://ksqldb-server:8088
+
+##Create stream for topic1
+CREATE STREAM topic1_stream (
+    userid VARCHAR,
+    pageid VARCHAR,
+    viewtime BIGINT
+) WITH (
+    KAFKA_TOPIC='topic1',
+    VALUE_FORMAT='JSON'
+);
+
+SELECT * FROM topic1_stream EMIT CHANGES;
+
+##Create table for topic2
+CREATE TABLE topic2_table (
+   USERID STRING PRIMARY KEY,
+   REGIONID STRING,
+   GENDER STRING,
+   REGISTERTIME BIGINT
+) WITH (
+   KAFKA_TOPIC = 'topic2',
+   VALUE_FORMAT = 'JSON'
+);
+
+SELECT * from topic2_table EMIT CHANGES;
+
+##Create table for topic3
+CREATE TABLE topic3_table (
+>    regionid VARCHAR PRIMARY KEY,
+>    region_name VARCHAR,
+>    country VARCHAR,
+>    continent VARCHAR,
+>    population INTEGER
+>) WITH (
+>    KAFKA_TOPIC='topic3',
+>    VALUE_FORMAT='JSON'
+>);
+
+INSERT INTO topic3_table (regionid, region_name, country, continent, population) VALUES
+    ('Region_1', 'Northwest', 'United States', 'North America', 7510000);
+
+INSERT INTO topic3_table (regionid, region_name, country, continent, population) VALUES
+    ('Region_2', 'Southwest', 'United States', 'North America', 9900000);
+
+INSERT INTO topic3_table (regionid, region_name, country, continent, population) VALUES
+    ('Region_3', 'Midwest', 'United States', 'North America', 6800000);
+
+INSERT INTO topic3_table (regionid, region_name, country, continent, population) VALUES
+    ('Region_4', 'Northeast', 'United States', 'North America', 5600000);
+
+INSERT INTO topic3_table (regionid, region_name, country, continent, population) VALUES
+    ('Region_5', 'Southeast', 'United States', 'North America', 8100000);
+
+INSERT INTO topic3_table (regionid, region_name, country, continent, population) VALUES
+    ('Region_6', 'Quebec', 'Canada', 'North America', 8500000);
+
+INSERT INTO topic3_table (regionid, region_name, country, continent, population) VALUES
+    ('Region_7', 'Ontario', 'Canada', 'North America', 14500000);
+
+INSERT INTO topic3_table (regionid, region_name, country, continent, population) VALUES
+    ('Region_8', 'British Columbia', 'Canada', 'North America', 5000000);
+
+INSERT INTO topic3_table (regionid, region_name, country, continent, population) VALUES
+    ('Region_9', 'Alberta', 'Canada', 'North America', 4400000);
+
+INSERT INTO topic3_table (regionid, region_name, country, continent, population) VALUES
+    ('Region_10', 'New South Wales', 'Australia', 'Oceania', 8200000);
+
+
+SELECT * FROM topic3_table EMIT CHANGES;
+
+##Create table for topic4
+
+CREATE TABLE users_formatted WITH (
+    KAFKA_TOPIC='topic4',
+    VALUE_FORMAT='JSON'
+) AS
+SELECT 
+    USERID,
+    REGIONID,
+    GENDER,
+    TIMESTAMPTOSTRING(REGISTERTIME, 'yyyy-MM-dd HH:mm:ss') AS REGISTERTIME_FORMATTED
+FROM 
+    topic2_table
+EMIT CHANGES;
+
+SELECT * FROM users_formatted EMIT CHANGES LIMIT 10;
+
+##Create table for topic5
+
+CREATE STREAM Consolidate_Stream WITH (
+   KAFKA_TOPIC = 'topic5',
+   VALUE_FORMAT = 'JSON'
+) AS
+  SELECT 
+         topic1_stream.userid AS UserId,              -- Key column
+         topic1_stream.pageid,
+         topic1_stream.viewtime,
+         
+         topic2_table.regionid,
+         topic2_table.gender,
+         topic2_table.registertime,
+
+         topic3_table.region_name,
+         topic3_table.country,
+         topic3_table.continent,
+         topic3_table.population
+  FROM topic1_stream
+  LEFT JOIN topic2_table 
+    ON topic1_stream.userid = topic2_table.userid
+  LEFT JOIN topic3_table 
+    ON topic2_table.regionid = topic3_table.regionid
+EMIT CHANGES;
+
+SELECT * FROM Consolidate_Stream EMIT CHANGES LIMIT 10;
+
+##Create table for Topic6
+CREATE TABLE CountryViews_Tumbling WITH (
+   KAFKA_TOPIC = 'topic6',
+   VALUE_FORMAT = 'JSON',
+   PARTITIONS = 5,
+   REPLICAS = 3
+) AS
+SELECT
+   country,
+   LATEST_BY_OFFSET(continent) AS Continent,
+   LATEST_BY_OFFSET(region_name) AS RegionName,
+   COUNT(*) AS ViewCount,
+   WINDOWSTART AS StartWindow,
+   WINDOWEND AS EndWindow
+FROM Consolidate_Stream
+WINDOW TUMBLING (SIZE 1 MINUTE)
+GROUP BY country
+EMIT CHANGES;
+
+select * from CountryViews_Tumbling emit changes limit 10;
+
+##Create table for topic7
+
+CREATE TABLE CountryViews_Hopping WITH (
+   KAFKA_TOPIC = 'topic7',
+   KEY_FORMAT = 'JSON',
+   VALUE_FORMAT = 'JSON'
+) AS
+SELECT
+   country,
+   LATEST_BY_OFFSET(continent) AS Continent,
+   LATEST_BY_OFFSET(region_name) AS RegionName,
+   COUNT(*) AS ViewCount,
+   WINDOWSTART AS StartPeriod,
+   WINDOWEND AS EndPeriod
+FROM Consolidate_Stream
+WINDOW HOPPING (SIZE 5 SECONDS, ADVANCE BY 2 SECONDS)
+GROUP BY country
+EMIT CHANGES;
+
+select * from CountryViews_Hopping emit changes limit 10;
+
+##Create table for Topic8
+
+CREATE TABLE Continent_Session_Analysis WITH (
+   KAFKA_TOPIC = 'topic8',
+   VALUE_FORMAT = 'JSON',
+   PARTITIONS = 5,
+   REPLICAS = 3
+) AS
+SELECT
+   continent,
+   LATEST_BY_OFFSET(country) AS Country,
+   COUNT(*) AS PageVisitCount,
+   (WINDOWEND - WINDOWSTART) / 1000 AS SessionLengthSeconds,
+   WINDOWSTART AS SessionStart,
+   WINDOWEND AS SessionEnd
+FROM Consolidate_Stream
+WINDOW SESSION (5 SECONDS)
+GROUP BY continent
+EMIT CHANGES;
+
+select * from Continent_Session_Analysis emit changes limit 10;
+
+#Pinot
+##Create Schema for Consolidate_Stream
+
+SCHEMA_JSON='{
+  "schemaName": "Consolidate",
+  "enableColumnBasedNullHandling": false,
+  "dimensionFieldSpecs": [
+    { "name": "TOPIC2_TABLE_REGIONID", "dataType": "STRING", "notNull": false },
+    { "name": "USERID", "dataType": "STRING", "notNull": false },
+    { "name": "PAGEID", "dataType": "STRING", "notNull": false },
+    { "name": "GENDER", "dataType": "STRING", "notNull": false },
+    { "name": "REGION_NAME", "dataType": "STRING", "notNull": false },
+    { "name": "COUNTRY", "dataType": "STRING", "notNull": false },
+    { "name": "CONTINENT", "dataType": "STRING", "notNull": false }
+  ],
+  "metricFieldSpecs": [
+    { "name": "POPULATION", "dataType": "INT", "notNull": false }
+  ],
+  "dateTimeFieldSpecs": [
+    { "name": "VIEWTIME", "dataType": "LONG", "notNull": false, "format": "1:MILLISECONDS:EPOCH", "granularity": "1:MILLISECONDS" },
+    { "name": "REGISTERTIME", "dataType": "LONG", "notNull": false, "format": "1:MILLISECONDS:EPOCH", "granularity": "1:MILLISECONDS" }
+  ]
+}'
+
+curl -X POST -H "Content-Type: application/json" -d "$SCHEMA_JSON" http://localhost:9000/schemas
+
+##Create table
+TABLE_JSON='{
+  "tableName": "Consolidate_REALTIME",
+  "tableType": "REALTIME",
+  "segmentsConfig": {
+    "schemaName": "Consolidate",
+    "replication": "1",
+    "timeColumnName": "VIEWTIME",
+    "replicasPerPartition": "1"
+  },
+  "tenants": {
+    "broker": "DefaultTenant",
+    "server": "DefaultTenant"
+  },
+  "tableIndexConfig": {
+    "streamConfigs": {
+      "streamType": "kafka",
+      "stream.kafka.topic.name": "topic5",
+      "stream.kafka.broker.list": "broker:29092",
+      "stream.kafka.consumer.type": "lowlevel",
+      "stream.kafka.consumer.prop.auto.offset.reset": "smallest",
+      "stream.kafka.consumer.factory.class.name": "org.apache.pinot.plugin.stream.kafka20.KafkaConsumerFactory",
+      "stream.kafka.decoder.class.name": "org.apache.pinot.plugin.stream.kafka.KafkaJSONMessageDecoder"
+    }
+  },
+  "metadata": {}
+}'
+
+curl -X POST -H "Content-Type: application/json" -d "$TABLE_JSON" http://localhost:9000/tables
+
+
+##Create Schema for CountryViews_Tumbling (topic6)
+
+SCHEMA_JSON='{
+  "schemaName": "CountryViews_Tumbling",
+  "enableColumnBasedNullHandling": false,
+  "dimensionFieldSpecs": [
+    { "name": "CONTINENT", "dataType": "STRING", "notNull": false },
+    { "name": "REGIONNAME", "dataType": "STRING", "notNull": false }
+  ],
+  "metricFieldSpecs": [
+    { "name": "VIEWCOUNT", "dataType": "LONG", "notNull": false }
+  ],
+  "dateTimeFieldSpecs": [
+    { "name": "STARTWINDOW", "dataType": "LONG", "notNull": false, "format": "1:MILLISECONDS:EPOCH", "granularity": "1:MILLISECONDS" },
+    { "name": "ENDWINDOW", "dataType": "LONG", "notNull": false, "format": "1:MILLISECONDS:EPOCH", "granularity": "1:MILLISECONDS" }
+  ]
+}'
+
+curl -X POST -H "Content-Type: application/json" -d "$SCHEMA_JSON" http://localhost:9000/schemas
+
+##Create table
+
+TABLE_JSON='{
+  "tableName": "CountryViews_Tumbling_REALTIME",
+  "tableType": "REALTIME",
+  "segmentsConfig": {
+    "schemaName": "CountryViews_Tumbling",
+    "replication": "1",
+    "timeColumnName": "STARTWINDOW",
+    "replicasPerPartition": "1"
+  },
+  "tenants": {
+    "broker": "DefaultTenant",
+    "server": "DefaultTenant"
+  },
+  "tableIndexConfig": {
+    "streamConfigs": {
+      "streamType": "kafka",
+      "stream.kafka.topic.name": "topic6",
+      "stream.kafka.broker.list": "broker:29092",
+      "stream.kafka.consumer.type": "lowlevel",
+      "stream.kafka.consumer.prop.auto.offset.reset": "smallest",
+      "stream.kafka.consumer.factory.class.name": "org.apache.pinot.plugin.stream.kafka20.KafkaConsumerFactory",
+      "stream.kafka.decoder.class.name": "org.apache.pinot.plugin.stream.kafka.KafkaJSONMessageDecoder"
+    }
+  },
+  "metadata": {}
+}'
+
+curl -X POST -H "Content-Type: application/json" -d "$TABLE_JSON" http://localhost:9000/tables
+
+##Create Schema for Continent_Session_Analysis (topic8)
+
+SCHEMA_JSON='{
+  "schemaName": "Continent_Session_Analysis",
+  "enableColumnBasedNullHandling": false,
+  "dimensionFieldSpecs": [
+    { "name": "COUNTRY", "dataType": "STRING", "notNull": false }
+  ],
+  "metricFieldSpecs": [
+    { "name": "PAGEVISITCOUNT", "dataType": "INT", "notNull": false },
+    { "name": "SESSIONLENGTHSECONDS", "dataType": "LONG", "notNull": false }
+  ],
+  "dateTimeFieldSpecs": [
+    { "name": "SESSIONSTART", "dataType": "LONG", "notNull": false, "format": "1:MILLISECONDS:EPOCH", "granularity": "1:MILLISECONDS" },
+    { "name": "SESSIONEND", "dataType": "LONG", "notNull": false, "format": "1:MILLISECONDS:EPOCH", "granularity": "1:MILLISECONDS" }
+  ]
+}'
+
+curl -X POST -H "Content-Type: application/json" -d "$SCHEMA_JSON" http://localhost:9000/schemas
+
+##Create table
+
+TABLE_JSON='{
+  "tableName": "Continent_Session_Analysis_REALTIME",
+  "tableType": "REALTIME",
+  "segmentsConfig": {
+    "schemaName": "Continent_Session_Analysis",
+    "replication": "1",
+    "timeColumnName": "SESSIONSTART",
+    "replicasPerPartition": "1"
+  },
+  "tenants": {
+    "broker": "DefaultTenant",
+    "server": "DefaultTenant"
+  },
+  "tableIndexConfig": {
+    "streamConfigs": {
+      "streamType": "kafka",
+      "stream.kafka.topic.name": "topic8",
+      "stream.kafka.broker.list": "broker:29092",
+      "stream.kafka.consumer.type": "lowlevel",
+      "stream.kafka.consumer.prop.auto.offset.reset": "smallest",
+      "stream.kafka.consumer.factory.class.name": "org.apache.pinot.plugin.stream.kafka20.KafkaConsumerFactory",
+      "stream.kafka.decoder.class.name": "org.apache.pinot.plugin.stream.kafka.KafkaJSONMessageDecoder"
+    }
+  },
+  "metadata": {}
+}'
+
+curl -X POST -H "Content-Type: application/json" -d "$TABLE_JSON" http://localhost:9000/tables
+
+#Streamlit
+
+scp -i Hafiz_Keypair_1.pem streamlit.py ubuntu@ec2-122-248-218-143.ap-southeast-1.compute.amazonaws.com:/home/ubuntu
+
+##Install Python and Pip
+sudo apt update
+sudo apt install python3 python3-pip
+
+##Install Streamlit and Other Required Libraries
+cd /path/to/your/script
+pip3 install streamlit pandas plotly pinotdb
+
+##Run the Streamlit Application
+~/.local/bin/streamlit run streamlit.py --server.port 8501 --server.enableCORS false
+
+export PATH=$PATH:~/.local/bin
+
+streamlit --version
+
+streamlit run streamlit.py
+
+http://ec2-122-248-218-143.ap-southeast-1.compute.amazonaws.com:8501/
