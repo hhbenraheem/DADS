@@ -16,4 +16,4 @@ The objective of this project is to implement a real-time data streaming and ana
 
 ![Dashboard Overview](https://i.ibb.co/tHFjktM/Streamlit-Dashboard.png)
 
-You can view the live dashboard at [http://ec2-122-248-218-143.ap-southeast-1.compute.amazonaws.com:8501/).
+You can view the live dashboard at http://ec2-122-248-218-143.ap-southeast-1.compute.amazonaws.com:8501/
